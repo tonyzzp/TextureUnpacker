@@ -6,4 +6,4 @@ go build unpacker.go
 
 
 ## Use ##
-unpacker.exe packedimg.png
+unpacker.exe -image packedimg.png

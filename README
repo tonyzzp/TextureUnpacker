@@ -1,9 +1,10 @@
-## Info ##
 support plist format 2
 
-** Build **
+
+## Build
 go build unpacker.go
 
 
-** Use **
+## Use
 unpacker.exe -image packedimg.png
+

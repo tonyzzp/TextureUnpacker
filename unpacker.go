@@ -178,17 +178,27 @@ func resolveFramesFromJson(path string) *list.List {
 	bytes, _ := ioutil.ReadFile(path)
 	m := make(map[string]interface{})
 	json.Unmarshal(bytes, &m)
-	frames := m["frames"]
-	switch t := frames.(type) {
-	case map[string]interface{}:
-		for k, v := range t {
-			item := _Frame{}
-			item.key = k
-			getFrameFromJsonObject(v.(map[string]interface{}), &item)
-			l.PushBack(&item)
+	if frames := m["frames"]; frames != nil {
+		switch t := frames.(type) {
+		case map[string]interface{}:
+			for k, v := range t {
+				item := _Frame{}
+				item.key = k
+				getFrameFromJsonObject(v.(map[string]interface{}), &item)
+				l.PushBack(&item)
+			}
+		case []interface{}:
+			for _, v := range t {
+				m := v.(map[string]interface{})
+				item := _Frame{}
+				item.key = m["filename"].(string)
+				getFrameFromJsonObject(m, &item)
+				l.PushBack(&item)
+			}
 		}
-	case []interface{}:
-		for _, v := range t {
+	} else if textures := m["textures"]; textures != nil {
+		frames := textures.([]interface{})[0].(map[string]interface{})["frames"].([]interface{})
+		for _, v := range frames {
 			m := v.(map[string]interface{})
 			item := _Frame{}
 			item.key = m["filename"].(string)

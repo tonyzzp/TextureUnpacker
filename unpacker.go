@@ -2,6 +2,7 @@ package main
 
 import (
 	"container/list"
+	"encoding/json"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -150,6 +151,46 @@ func resolveFramesFromAtlas(path string) *list.List {
 	return l
 }
 
+func resolveFramesFromJson(path string) *list.List {
+	getInt := func(data map[string]interface{}, key string) int {
+		v := data[key]
+		f := v.(float64)
+		return int(f)
+	}
+
+	l := list.New()
+	bytes, _ := ioutil.ReadFile(path)
+	m := make(map[string]interface{})
+	json.Unmarshal(bytes, &m)
+	frames := m["frames"]
+	switch t := frames.(type) {
+	case map[interface{}]interface{}:
+		fmt.Println("map", t)
+	case []interface{}:
+		for _, v := range t {
+			m := v.(map[string]interface{})
+			item := _Frame{}
+			item.key = m["filename"].(string)
+
+			frame := m["frame"].(map[string]interface{})
+			item.frameOffset = image.Pt(getInt(frame, "x"), getInt(frame, "y"))
+			item.frameSize = image.Pt(getInt(frame, "w"), getInt(frame, "h"))
+
+			item.rotated = m["rotated"].(bool)
+
+			spriteSourceSize := m["spriteSourceSize"].(map[string]interface{})
+			item.sourceOffset = image.Pt(getInt(spriteSourceSize, "x"), getInt(spriteSourceSize, "y"))
+			item.sourceSize = image.Pt(getInt(spriteSourceSize, "w"), getInt(spriteSourceSize, "h"))
+
+			sourceSize := m["sourceSize"].(map[string]interface{})
+			item.sourceSize = image.Pt(getInt(sourceSize, "w"), getInt(sourceSize, "h"))
+
+			l.PushBack(&item)
+		}
+	}
+	return l
+}
+
 func rotateImage(img image.Image, right bool) *image.RGBA {
 	w := img.Bounds().Dy()
 	h := img.Bounds().Dx()
@@ -190,6 +231,8 @@ func main() {
 		frames = resolveFramesFromPlist(path)
 	} else if path := filepath.Join(dir, baseName+".atlas"); isFile(path) {
 		frames = resolveFramesFromAtlas(path)
+	} else if path := filepath.Join(dir, baseName+".json"); isFile(path) {
+		frames = resolveFramesFromJson(path)
 	}
 
 	file, _ := os.Open(inPath)

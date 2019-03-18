@@ -1,4 +1,6 @@
-support plist format 2
+## Support
+- plist format 2
+- libgdx atlas
 
 
 ## Build

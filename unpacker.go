@@ -27,6 +27,8 @@ type _Frame struct {
 	frameSize    image.Point
 	sourceSize   image.Point
 	sourceOffset image.Point
+
+	spriteOffset image.Point
 }
 
 func isFile(path string) bool {
@@ -63,7 +65,7 @@ func resolveFramesFromPlist(plist string) *list.List {
 				frame = &_Frame{right: false}
 				frame.key = currentKey
 			}
-			if currentKey == "rotated" {
+			if currentKey == "rotated" || currentKey == "textureRotated" {
 				if currentTagName == "true" {
 					frame.rotated = true
 				} else if currentTagName == "false" {
@@ -72,6 +74,10 @@ func resolveFramesFromPlist(plist string) *list.List {
 			}
 		case xml.EndElement:
 			if element.Name.Local == "dict" && frame != nil && frame.sourceSize.X > 0 {
+				if frame.spriteOffset.X != 0 || frame.spriteOffset.Y != 0 {
+					frame.sourceOffset.X = frame.sourceSize.X/2 + frame.spriteOffset.X - frame.frameSize.X/2
+					frame.sourceOffset.Y = frame.sourceSize.Y/2 - frame.spriteOffset.Y - frame.frameSize.Y/2
+				}
 				l.PushBack(frame)
 			}
 		case xml.CharData:
@@ -95,6 +101,25 @@ func resolveFramesFromPlist(plist string) *list.List {
 			case "sourceSize":
 				ps := parsePoints(s)
 				frame.sourceSize = ps[0]
+			case "spriteSize":
+				ps := parsePoints(s)
+				frame.frameSize = ps[0]
+			case "spriteSourceSize":
+				ps := parsePoints(s)
+				frame.sourceSize = ps[0]
+			case "textureRect":
+				ps := parsePoints(s)
+				frame.frameOffset = ps[0]
+			case "spriteOffset":
+				p := parsePoints(s)[0]
+				// if frame.rotated {
+				// frame.sourceOffset.X = frame.sourceSize.X/2 - p.X - frame.frameSize.X/2
+				// frame.sourceOffset.Y = frame.sourceSize.Y/2 - p.Y - frame.frameSize.Y/2
+				// } else {
+				// frame.sourceOffset.X = frame.sourceSize.X/2 - p.X - frame.frameSize.X/2
+				// frame.sourceOffset.Y = frame.sourceSize.Y/2 - p.Y - frame.frameOffset.Y/2
+				// }
+				frame.spriteOffset = p
 			}
 		}
 	}

@@ -6,10 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	_ "image/jpeg"
 	"image/png"
 	_ "image/png"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,10 +21,16 @@ import (
 type _Frame struct {
 	key          string
 	rotated      bool
+	right        bool
 	frameOffset  image.Point
 	frameSize    image.Point
 	sourceSize   image.Point
 	sourceOffset image.Point
+}
+
+func isFile(path string) bool {
+	st, _ := os.Stat(path)
+	return st != nil && !st.IsDir()
 }
 
 func parsePoints(s string) []image.Point {
@@ -50,7 +58,7 @@ func resolveFramesFromPlist(plist string) *list.List {
 		case xml.StartElement:
 			currentTagName = element.Name.Local
 			if currentTagName == "dict" {
-				frame = &_Frame{}
+				frame = &_Frame{right: false}
 				frame.key = currentKey
 			}
 			if currentKey == "rotated" {
@@ -91,13 +99,69 @@ func resolveFramesFromPlist(plist string) *list.List {
 	return l
 }
 
-func rotateImage(img image.Image) *image.RGBA {
+func resolveFramesFromAtlas(path string) *list.List {
+	l := list.New()
+	bytes, _ := ioutil.ReadFile(path)
+	content := string(bytes)
+	lines := strings.Split(content, "\n")
+	lines = lines[1:]
+	var frame *_Frame
+	for _, line := range lines {
+		if strings.Index(line, ":") == -1 {
+			if frame != nil {
+				l.PushBack(frame)
+			}
+			frame = &_Frame{right: true}
+			frame.key = strings.TrimSpace(line) + ".png"
+			continue
+		}
+		if frame == nil {
+			continue
+		}
+		strs := strings.Split(strings.TrimSpace(line), ":")
+		if len(strs) != 2 {
+			fmt.Println("atlas格式错误", line)
+			os.Exit(-1)
+		}
+		key := strings.TrimSpace(strs[0])
+		val := strings.TrimSpace(strs[1])
+		p := image.Pt(0, 0)
+		if index := strings.Index(val, ","); index > -1 {
+			p.X, _ = strconv.Atoi(strings.TrimSpace(val[:index]))
+			p.Y, _ = strconv.Atoi(strings.TrimSpace(val[index+1:]))
+		}
+		switch key {
+		case "rotate":
+			frame.rotated = val == "true"
+		case "xy":
+			frame.frameOffset = p
+		case "size":
+			frame.frameSize = p
+		case "orig":
+			frame.sourceSize = p
+		case "offset":
+			frame.sourceOffset.X = p.X
+			frame.sourceOffset.Y = frame.sourceSize.Y - p.Y - frame.frameSize.Y
+		}
+	}
+	if frame != nil && frame.sourceSize.X > 0 {
+		l.PushBack(frame)
+	}
+	return l
+}
+
+func rotateImage(img image.Image, right bool) *image.RGBA {
 	w := img.Bounds().Dy()
 	h := img.Bounds().Dx()
 	rgba := image.NewRGBA(image.Rect(0, 0, w, h))
 	for x := 0; x < w; x++ {
 		for y := 0; y < h; y++ {
-			c := img.At(h-y, x)
+			var c color.Color
+			if right {
+				c = img.At(y, w-x)
+			} else {
+				c = img.At(h-y, x)
+			}
 			rgba.Set(x, y, c)
 		}
 	}
@@ -119,15 +183,21 @@ func main() {
 	dir := filepath.Dir(inPath)
 	baseName := filepath.Base(inPath)
 	baseName = baseName[:strings.Index(baseName, ".")]
-	plistPath := filepath.Join(dir, baseName+".plist")
 	outDir := filepath.Join(dir, baseName+"_out")
+
+	var frames *list.List
+	if path := filepath.Join(dir, baseName+".plist"); isFile(path) {
+		frames = resolveFramesFromPlist(path)
+	} else if path := filepath.Join(dir, baseName+".atlas"); isFile(path) {
+		frames = resolveFramesFromAtlas(path)
+	}
 
 	file, _ := os.Open(inPath)
 	source, _, _ := image.Decode(file)
-	frames := resolveFramesFromPlist(plistPath)
 	os.Mkdir(outDir, 0777)
 	for e := frames.Front(); e != nil; e = e.Next() {
 		frame := e.Value.(*_Frame)
+		fmt.Println(frame)
 		tw := frame.frameSize.X
 		th := frame.frameSize.Y
 		if frame.rotated {
@@ -136,7 +206,7 @@ func main() {
 		tmp := image.NewRGBA(image.Rect(0, 0, tw, th))
 		draw.Draw(tmp, tmp.Rect, source, frame.frameOffset, draw.Src)
 		if frame.rotated {
-			tmp = rotateImage(tmp)
+			tmp = rotateImage(tmp, frame.right)
 		}
 		dst := image.NewRGBA(image.Rect(0, 0, frame.sourceSize.X, frame.sourceSize.Y))
 		rect := image.Rectangle{}

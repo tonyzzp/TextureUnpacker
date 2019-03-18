@@ -34,19 +34,20 @@ func isFile(path string) bool {
 	return st != nil && !st.IsDir()
 }
 
-func parsePoints(s string) []image.Point {
-	ps := []image.Point{{}, {}, {}, {}}
-	strs := strings.Split(s, ",")
-	ps[0].X, _ = strconv.Atoi(strings.Replace(strs[0], "{", "", -1))
-	ps[0].Y, _ = strconv.Atoi(strings.Replace(strs[1], "}", "", -1))
-	if len(strs) == 4 {
-		ps[1].X, _ = strconv.Atoi(strings.Replace(strs[2], "{", "", -1))
-		ps[1].Y, _ = strconv.Atoi(strings.Replace(strs[3], "}", "", -1))
-	}
-	return ps
-}
-
 func resolveFramesFromPlist(plist string) *list.List {
+
+	parsePoints := func(s string) []image.Point {
+		ps := []image.Point{{}, {}, {}, {}}
+		strs := strings.Split(s, ",")
+		ps[0].X, _ = strconv.Atoi(strings.Replace(strs[0], "{", "", -1))
+		ps[0].Y, _ = strconv.Atoi(strings.Replace(strs[1], "}", "", -1))
+		if len(strs) == 4 {
+			ps[1].X, _ = strconv.Atoi(strings.Replace(strs[2], "{", "", -1))
+			ps[1].Y, _ = strconv.Atoi(strings.Replace(strs[3], "}", "", -1))
+		}
+		return ps
+	}
+
 	l := list.New()
 	file, _ := os.Open(plist)
 	defer file.Close()
@@ -158,33 +159,40 @@ func resolveFramesFromJson(path string) *list.List {
 		return int(f)
 	}
 
+	getFrameFromJsonObject := func(data map[string]interface{}, item *_Frame) {
+		frame := data["frame"].(map[string]interface{})
+		item.frameOffset = image.Pt(getInt(frame, "x"), getInt(frame, "y"))
+		item.frameSize = image.Pt(getInt(frame, "w"), getInt(frame, "h"))
+
+		item.rotated = data["rotated"].(bool)
+
+		spriteSourceSize := data["spriteSourceSize"].(map[string]interface{})
+		item.sourceOffset = image.Pt(getInt(spriteSourceSize, "x"), getInt(spriteSourceSize, "y"))
+		item.sourceSize = image.Pt(getInt(spriteSourceSize, "w"), getInt(spriteSourceSize, "h"))
+
+		sourceSize := data["sourceSize"].(map[string]interface{})
+		item.sourceSize = image.Pt(getInt(sourceSize, "w"), getInt(sourceSize, "h"))
+	}
+
 	l := list.New()
 	bytes, _ := ioutil.ReadFile(path)
 	m := make(map[string]interface{})
 	json.Unmarshal(bytes, &m)
 	frames := m["frames"]
 	switch t := frames.(type) {
-	case map[interface{}]interface{}:
-		fmt.Println("map", t)
+	case map[string]interface{}:
+		for k, v := range t {
+			item := _Frame{}
+			item.key = k
+			getFrameFromJsonObject(v.(map[string]interface{}), &item)
+			l.PushBack(&item)
+		}
 	case []interface{}:
 		for _, v := range t {
 			m := v.(map[string]interface{})
 			item := _Frame{}
 			item.key = m["filename"].(string)
-
-			frame := m["frame"].(map[string]interface{})
-			item.frameOffset = image.Pt(getInt(frame, "x"), getInt(frame, "y"))
-			item.frameSize = image.Pt(getInt(frame, "w"), getInt(frame, "h"))
-
-			item.rotated = m["rotated"].(bool)
-
-			spriteSourceSize := m["spriteSourceSize"].(map[string]interface{})
-			item.sourceOffset = image.Pt(getInt(spriteSourceSize, "x"), getInt(spriteSourceSize, "y"))
-			item.sourceSize = image.Pt(getInt(spriteSourceSize, "w"), getInt(spriteSourceSize, "h"))
-
-			sourceSize := m["sourceSize"].(map[string]interface{})
-			item.sourceSize = image.Pt(getInt(sourceSize, "w"), getInt(sourceSize, "h"))
-
+			getFrameFromJsonObject(m, &item)
 			l.PushBack(&item)
 		}
 	}

@@ -3,9 +3,9 @@ package main
 import (
 	"container/list"
 	"encoding/json"
- 	"image"
- 	"io/ioutil"
- )
+	"image"
+	"io/ioutil"
+)
 
 func resolveFramesFromJson(path string) *list.List {
 	getInt := func(data map[string]interface{}, key string) int {
@@ -14,7 +14,7 @@ func resolveFramesFromJson(path string) *list.List {
 		return int(f)
 	}
 
-	getFrameFromJsonObject := func(data map[string]interface{}, item *_Frame) {
+	getFrameFromJsonObject := func(data map[string]interface{}, item *Frame) {
 		frame := data["frame"].(map[string]interface{})
 		item.frameOffset = image.Pt(getInt(frame, "x"), getInt(frame, "y"))
 		item.frameSize = image.Pt(getInt(frame, "w"), getInt(frame, "h"))
@@ -37,7 +37,7 @@ func resolveFramesFromJson(path string) *list.List {
 		switch t := frames.(type) {
 		case map[string]interface{}:
 			for k, v := range t {
-				item := _Frame{}
+				item := Frame{}
 				item.key = k
 				getFrameFromJsonObject(v.(map[string]interface{}), &item)
 				l.PushBack(&item)
@@ -45,7 +45,7 @@ func resolveFramesFromJson(path string) *list.List {
 		case []interface{}:
 			for _, v := range t {
 				m := v.(map[string]interface{})
-				item := _Frame{}
+				item := Frame{}
 				item.key = m["filename"].(string)
 				getFrameFromJsonObject(m, &item)
 				l.PushBack(&item)
@@ -55,7 +55,7 @@ func resolveFramesFromJson(path string) *list.List {
 		frames := textures.([]interface{})[0].(map[string]interface{})["frames"].([]interface{})
 		for _, v := range frames {
 			m := v.(map[string]interface{})
-			item := _Frame{}
+			item := Frame{}
 			item.key = m["filename"].(string)
 			getFrameFromJsonObject(m, &item)
 			l.PushBack(&item)

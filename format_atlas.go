@@ -16,13 +16,13 @@ func resolveFramesFromAtlas(path string) *list.List {
 	content := string(bytes)
 	lines := strings.Split(content, "\n")
 	lines = lines[1:]
-	var frame *_Frame
+	var frame *Frame
 	for _, line := range lines {
 		if strings.Index(line, ":") == -1 {
 			if frame != nil {
 				l.PushBack(frame)
 			}
-			frame = &_Frame{right: true}
+			frame = &Frame{right: true}
 			frame.key = strings.TrimSpace(line) + ".png"
 			continue
 		}

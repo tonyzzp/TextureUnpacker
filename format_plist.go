@@ -3,12 +3,11 @@ package main
 import (
 	"container/list"
 	"encoding/xml"
- 	"image" 
- 	"os"
- 	"strconv"
+	"image"
+	"os"
+	"strconv"
 	"strings"
 )
-
 
 func resolveFramesFromPlist(plist string) *list.List {
 
@@ -30,13 +29,13 @@ func resolveFramesFromPlist(plist string) *list.List {
 	decoder := xml.NewDecoder(file)
 	currentTagName := ""
 	currentKey := ""
-	var frame *_Frame
+	var frame *Frame
 	for token, _ := decoder.Token(); token != nil; token, _ = decoder.Token() {
 		switch element := token.(type) {
 		case xml.StartElement:
 			currentTagName = element.Name.Local
 			if currentTagName == "dict" {
-				frame = &_Frame{right: false}
+				frame = &Frame{right: false}
 				frame.key = currentKey
 			}
 			if currentKey == "rotated" || currentKey == "textureRotated" {

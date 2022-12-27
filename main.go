@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-type _Frame struct {
+type Frame struct {
 	key          string
 	rotated      bool
 	right        bool
@@ -81,7 +81,7 @@ func main() {
 	source, _, _ := image.Decode(file)
 	os.Mkdir(outDir, 0777)
 	for e := frames.Front(); e != nil; e = e.Next() {
-		frame := e.Value.(*_Frame)
+		frame := e.Value.(*Frame)
 		fmt.Println(frame)
 		tw := frame.frameSize.X
 		th := frame.frameSize.Y

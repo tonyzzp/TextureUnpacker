@@ -2,8 +2,6 @@ package main
 
 import (
 	"container/list"
-	"encoding/json"
-	"encoding/xml"
 	"flag"
 	"fmt"
 	"image"
@@ -11,11 +9,8 @@ import (
 	"image/draw"
 	_ "image/jpeg"
 	"image/png"
-	_ "image/png"
-	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -34,204 +29,6 @@ type _Frame struct {
 func isFile(path string) bool {
 	st, _ := os.Stat(path)
 	return st != nil && !st.IsDir()
-}
-
-func resolveFramesFromPlist(plist string) *list.List {
-
-	parsePoints := func(s string) []image.Point {
-		ps := []image.Point{{}, {}, {}, {}}
-		strs := strings.Split(s, ",")
-		ps[0].X, _ = strconv.Atoi(strings.Replace(strs[0], "{", "", -1))
-		ps[0].Y, _ = strconv.Atoi(strings.Replace(strs[1], "}", "", -1))
-		if len(strs) == 4 {
-			ps[1].X, _ = strconv.Atoi(strings.Replace(strs[2], "{", "", -1))
-			ps[1].Y, _ = strconv.Atoi(strings.Replace(strs[3], "}", "", -1))
-		}
-		return ps
-	}
-
-	l := list.New()
-	file, _ := os.Open(plist)
-	defer file.Close()
-	decoder := xml.NewDecoder(file)
-	currentTagName := ""
-	currentKey := ""
-	var frame *_Frame
-	for token, _ := decoder.Token(); token != nil; token, _ = decoder.Token() {
-		switch element := token.(type) {
-		case xml.StartElement:
-			currentTagName = element.Name.Local
-			if currentTagName == "dict" {
-				frame = &_Frame{right: false}
-				frame.key = currentKey
-			}
-			if currentKey == "rotated" || currentKey == "textureRotated" {
-				if currentTagName == "true" {
-					frame.rotated = true
-				} else if currentTagName == "false" {
-					frame.rotated = false
-				}
-			}
-		case xml.EndElement:
-			if element.Name.Local == "dict" && frame != nil && frame.sourceSize.X > 0 {
-				if frame.spriteOffset.X != 0 || frame.spriteOffset.Y != 0 {
-					frame.sourceOffset.X = frame.sourceSize.X/2 + frame.spriteOffset.X - frame.frameSize.X/2
-					frame.sourceOffset.Y = frame.sourceSize.Y/2 - frame.spriteOffset.Y - frame.frameSize.Y/2
-				}
-				l.PushBack(frame)
-			}
-		case xml.CharData:
-			s := string(element)
-			s = strings.TrimSpace(s)
-			if s == "" {
-				break
-			}
-			if currentTagName == "key" {
-				currentKey = s
-				break
-			}
-			switch currentKey {
-			case "frame":
-				ps := parsePoints(s)
-				frame.frameOffset = ps[0]
-				frame.frameSize = ps[1]
-			case "sourceColorRect":
-				ps := parsePoints(s)
-				frame.sourceOffset = ps[0]
-			case "sourceSize":
-				ps := parsePoints(s)
-				frame.sourceSize = ps[0]
-			case "spriteSize":
-				ps := parsePoints(s)
-				frame.frameSize = ps[0]
-			case "spriteSourceSize":
-				ps := parsePoints(s)
-				frame.sourceSize = ps[0]
-			case "textureRect":
-				ps := parsePoints(s)
-				frame.frameOffset = ps[0]
-			case "spriteOffset":
-				p := parsePoints(s)[0]
-				// if frame.rotated {
-				// frame.sourceOffset.X = frame.sourceSize.X/2 - p.X - frame.frameSize.X/2
-				// frame.sourceOffset.Y = frame.sourceSize.Y/2 - p.Y - frame.frameSize.Y/2
-				// } else {
-				// frame.sourceOffset.X = frame.sourceSize.X/2 - p.X - frame.frameSize.X/2
-				// frame.sourceOffset.Y = frame.sourceSize.Y/2 - p.Y - frame.frameOffset.Y/2
-				// }
-				frame.spriteOffset = p
-			}
-		}
-	}
-	return l
-}
-
-func resolveFramesFromAtlas(path string) *list.List {
-	l := list.New()
-	bytes, _ := ioutil.ReadFile(path)
-	content := string(bytes)
-	lines := strings.Split(content, "\n")
-	lines = lines[1:]
-	var frame *_Frame
-	for _, line := range lines {
-		if strings.Index(line, ":") == -1 {
-			if frame != nil {
-				l.PushBack(frame)
-			}
-			frame = &_Frame{right: true}
-			frame.key = strings.TrimSpace(line) + ".png"
-			continue
-		}
-		if frame == nil {
-			continue
-		}
-		strs := strings.Split(strings.TrimSpace(line), ":")
-		if len(strs) != 2 {
-			fmt.Println("atlas格式错误", line)
-			os.Exit(-1)
-		}
-		key := strings.TrimSpace(strs[0])
-		val := strings.TrimSpace(strs[1])
-		p := image.Pt(0, 0)
-		if index := strings.Index(val, ","); index > -1 {
-			p.X, _ = strconv.Atoi(strings.TrimSpace(val[:index]))
-			p.Y, _ = strconv.Atoi(strings.TrimSpace(val[index+1:]))
-		}
-		switch key {
-		case "rotate":
-			frame.rotated = val == "true"
-		case "xy":
-			frame.frameOffset = p
-		case "size":
-			frame.frameSize = p
-		case "orig":
-			frame.sourceSize = p
-		case "offset":
-			frame.sourceOffset.X = p.X
-			frame.sourceOffset.Y = frame.sourceSize.Y - p.Y - frame.frameSize.Y
-		}
-	}
-	if frame != nil && frame.sourceSize.X > 0 {
-		l.PushBack(frame)
-	}
-	return l
-}
-
-func resolveFramesFromJson(path string) *list.List {
-	getInt := func(data map[string]interface{}, key string) int {
-		v := data[key]
-		f := v.(float64)
-		return int(f)
-	}
-
-	getFrameFromJsonObject := func(data map[string]interface{}, item *_Frame) {
-		frame := data["frame"].(map[string]interface{})
-		item.frameOffset = image.Pt(getInt(frame, "x"), getInt(frame, "y"))
-		item.frameSize = image.Pt(getInt(frame, "w"), getInt(frame, "h"))
-
-		item.rotated = data["rotated"].(bool)
-
-		spriteSourceSize := data["spriteSourceSize"].(map[string]interface{})
-		item.sourceOffset = image.Pt(getInt(spriteSourceSize, "x"), getInt(spriteSourceSize, "y"))
-		item.sourceSize = image.Pt(getInt(spriteSourceSize, "w"), getInt(spriteSourceSize, "h"))
-
-		sourceSize := data["sourceSize"].(map[string]interface{})
-		item.sourceSize = image.Pt(getInt(sourceSize, "w"), getInt(sourceSize, "h"))
-	}
-
-	l := list.New()
-	bytes, _ := ioutil.ReadFile(path)
-	m := make(map[string]interface{})
-	json.Unmarshal(bytes, &m)
-	if frames := m["frames"]; frames != nil {
-		switch t := frames.(type) {
-		case map[string]interface{}:
-			for k, v := range t {
-				item := _Frame{}
-				item.key = k
-				getFrameFromJsonObject(v.(map[string]interface{}), &item)
-				l.PushBack(&item)
-			}
-		case []interface{}:
-			for _, v := range t {
-				m := v.(map[string]interface{})
-				item := _Frame{}
-				item.key = m["filename"].(string)
-				getFrameFromJsonObject(m, &item)
-				l.PushBack(&item)
-			}
-		}
-	} else if textures := m["textures"]; textures != nil {
-		frames := textures.([]interface{})[0].(map[string]interface{})["frames"].([]interface{})
-		for _, v := range frames {
-			m := v.(map[string]interface{})
-			item := _Frame{}
-			item.key = m["filename"].(string)
-			getFrameFromJsonObject(m, &item)
-			l.PushBack(&item)
-		}
-	}
-	return l
 }
 
 func rotateImage(img image.Image, right bool) *image.RGBA {
@@ -273,6 +70,8 @@ func main() {
 	if path := filepath.Join(dir, baseName+".plist"); isFile(path) {
 		frames = resolveFramesFromPlist(path)
 	} else if path := filepath.Join(dir, baseName+".atlas"); isFile(path) {
+		frames = resolveFramesFromAtlas(path)
+	} else if path := filepath.Join(dir, baseName+".txt"); isFile(path) {
 		frames = resolveFramesFromAtlas(path)
 	} else if path := filepath.Join(dir, baseName+".json"); isFile(path) {
 		frames = resolveFramesFromJson(path)

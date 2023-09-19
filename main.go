@@ -50,7 +50,7 @@ func rotateImage(img image.Image, right bool) *image.RGBA {
 }
 
 func main() {
-	_imgPath := flag.String("image", "", "png/jpg图片路径")
+	_imgPath := flag.String("image", "", "png/jpg filepath")
 	flag.Parse()
 	inPath, _ := filepath.Abs(*_imgPath)
 	{
@@ -102,5 +102,5 @@ func main() {
 		out, _ := os.Create(outFile)
 		png.Encode(out, dst)
 	}
-	fmt.Println("成功 总数量", frames.Len())
+	fmt.Println("success count: ", frames.Len())
 }

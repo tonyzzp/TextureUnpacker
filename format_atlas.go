@@ -4,7 +4,6 @@ import (
 	"container/list"
 	"fmt"
 	"image"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -12,7 +11,7 @@ import (
 
 func resolveFramesFromAtlas(path string) *list.List {
 	l := list.New()
-	bytes, _ := ioutil.ReadFile(path)
+	bytes, _ := os.ReadFile(path)
 	content := string(bytes)
 	lines := strings.Split(content, "\n")
 	lines = lines[1:]
@@ -31,7 +30,7 @@ func resolveFramesFromAtlas(path string) *list.List {
 		}
 		strs := strings.Split(strings.TrimSpace(line), ":")
 		if len(strs) != 2 {
-			fmt.Println("atlas格式错误", line)
+			fmt.Println("atlas file format error: ", line)
 			os.Exit(-1)
 		}
 		key := strings.TrimSpace(strs[0])

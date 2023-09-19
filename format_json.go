@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"encoding/json"
 	"image"
-	"io/ioutil"
+	"os"
 )
 
 func resolveFramesFromJson(path string) *list.List {
@@ -30,7 +30,7 @@ func resolveFramesFromJson(path string) *list.List {
 	}
 
 	l := list.New()
-	bytes, _ := ioutil.ReadFile(path)
+	bytes, _ := os.ReadFile(path)
 	m := make(map[string]interface{})
 	json.Unmarshal(bytes, &m)
 	if frames := m["frames"]; frames != nil {
